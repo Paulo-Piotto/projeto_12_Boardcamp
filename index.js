@@ -1,6 +1,7 @@
 import pg from 'pg';
 import express from 'express';
 import cors from 'cors';
+import joi from 'joi';
 
 const app = express();
 app.use(cors());
@@ -20,6 +21,29 @@ app.get('/categorias', (req, res) => {
     connection.query("SELECT * FROM categories")
         .then((result) => {
             res.send(result.rows);
+        })
+})
+
+app.post('/categorias', (req, res) => {
+    const body = req.body;
+    const categorySchema = joi.object({
+        name: joi.string().required()
+    })
+
+    connection.query("SELECT * FROM categories WHERE name = $1", [req.body.name])
+        .then((result) => {
+            if(result.rows.length === 0){
+                if(!categorySchema.validate(body).error){
+                    connection.query("INSERT INTO categories (name) VALUES ($1)", [req.body.name])
+                        .then(() => {
+                            res.sendStatus(201);
+                        })
+                }else{
+                    res.sendStatus(400);
+                }  
+            }else{
+                res.sendStatus(409);
+            }
         })
 })
 
