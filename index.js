@@ -27,7 +27,7 @@ app.get('/categories', (req, res) => {
 app.post('/categories', (req, res) => {
     const body = req.body;
     const categorySchema = joi.object({
-        name: joi.string().required()
+        name: joi.string().min(1).required()
     })
 
     connection.query("SELECT * FROM categories WHERE name = $1", [req.body.name])
@@ -49,14 +49,14 @@ app.post('/categories', (req, res) => {
 
 
 app.get('/games', (req, res) => {
-    const params = req.query;
-    if(!params.name){
+    const queryString = req.query;
+    if(!queryString.name){
         connection.query('SELECT games.*, categories.name AS "categoryName" FROM games JOIN categories ON games."categoryId"=categories.id')
             .then((result) => {
                 res.send(result.rows);
             })
     }else{
-        connection.query('SELECT games.*, categories.name AS "categoryName" FROM games JOIN categories ON games."categoryId"=categories.id WHERE games.name iLIKE $1', [params.name+'%'])
+        connection.query('SELECT games.*, categories.name AS "categoryName" FROM games JOIN categories ON games."categoryId"=categories.id WHERE games.name iLIKE $1', [queryString.name+'%'])
             .then((result) => {
                 res.send(result.rows);
             })
@@ -67,7 +67,7 @@ app.get('/games', (req, res) => {
 app.post('/games', (req, res) => {
     const body = req.body;
     const gameSchema = joi.object({
-        name: joi.string().required(),
+        name: joi.string().min(1).required(),
         stockTotal: joi.number().positive().required(),
         pricePerDay: joi.number().positive().required(),
         image: joi.string().pattern(/^http:/).required(),
@@ -87,17 +87,75 @@ app.post('/games', (req, res) => {
                                     res.sendStatus(201);
                                 })
                         }else{
-                            console.log(gameSchema.validate(body).error)
                             res.sendStatus(400)
                         }
                     })
             }else{
-                console.log(result.rows)
                 res.sendStatus(400);
             }
         })
 
     
+})
+
+app.get('/customers', (req, res) => {
+    const queryString = req.query;
+
+    if(!queryString.cpf){
+        connection.query('SELECT * FROM customers')
+            .then((result) => {
+                res.send(result.rows);
+            })
+    }else{
+        connection.query('SELECT * FROM customers WHERE customers.cpf LIKE $1', [queryString.cpf+'%'])
+            .then((result) => {
+                res.send(result.rows);
+            })
+    }
+})
+
+
+app.get('/customers/:id', (req, res) => {
+    const params = req.params;
+
+    connection.query('SELECT * FROM customers WHERE customers.id = $1', [params.id])
+        .then((result) => {
+            if(result.rows[0]){
+                res.send(result.rows[0]);
+            }else{
+                res.sendStatus(404);
+            }
+            
+        })
+   
+})
+
+
+
+app.post('/customers', (req, res) => {
+    const body = req.body;
+    const customerSchema = joi.object({
+        name: joi.string().min(1).required(),
+        cpf:  joi.string().pattern(/(\d{3})(\d{3})(\d{3})(\d{2})/),
+        phone: joi.string().pattern(/^[0-9]{10,11}$/).required(),
+        birthday: joi.date().greater('1-1-1900').less('now')
+    })
+
+    connection.query('SELECT * FROM customers WHERE customers.cpf = $1', [body.cpf])
+        .then((result) => {
+            if(!result.rows[0]){
+                if(!customerSchema.validate(body).error){
+                    connection.query('INSERT INTO customers (name,phone,cpf,birthday) VALUES ($1,$2,$3,$4)', [body.name, body.phone, body.cpf, body.birthday])
+                        .then((result) => {
+                            res.sendStatus(201);
+                        })
+                }else{
+                    res.sendStatus(400);
+                }
+            }else{
+                res.sendStatus(409);
+            }
+        })
 })
 
 
